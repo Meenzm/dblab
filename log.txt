@@ -1,0 +1,82 @@
+psql -U postgres northwind;
+CREATE TABLE public.accounts (
+    user_id integer,
+    user_name character varying(20),
+    password character varying(20),
+    PRIMARY KEY (user_id)
+);
+START TRANSACTION;
+
+SELECT txid_current();
+
+INSERT  INTO accounts values (1, 'u1', 'pass1');
+
+SELECT xmin, xmax, * FROM accounts;
+
+UPDATE accounts set password='pnew1' WHERE password='pass1';
+
+COMMIT;
+
+DELETE FROM accounts WHERE user_id=1;
+
+CREATE TABLE bank_accounts (
+    accounts_id SERIAL PRIMARY KEY,
+    balance DECIMAL(10, 2) NOT NULL
+);
+
+INSERT INTO bank_accounts (balance) VALUES (1000.00);
+
+#Terminal 1
+SELECT pg_sleep(10);
+
+SELECT * FROM bank_accounts;
+
+-- Terminal 1 : Withdraw 200.-
+BEGIN;
+
+-- Lock the row for account_id 1
+SELECT * FROM bank_accounts WHERE account_id = 1 FOR UPDATE;
+
+-- Add delay (simulate time-consuming operation)
+SELECT pg_sleep(20); --Sleep for 10 seconds
+
+--Withdraw $200 form account 1
+UPDATE bank_accounts
+SET balance = balance - 200.00
+WHERE account_id = 1;
+
+-- COMMIT the transaction
+COMMIT;
+==
+#Terminal 2
+BEGIN;
+
+-- Lock the row for account_id 1
+SELECT * FROM bank_accounts WHERE account_id = 1 FOR UPDATE;
+
+-- Add delay (simulate time-consuming operation)
+SELECT pg_sleep(10); --Sleep for 5 seconds
+
+-- Terminal 3: Withdraw $1000 from account 1
+UPDATE bank_accounts
+SET balance = balance -1000.00
+WHERE account_id = 1;
+
+--Commit the transaction
+COMMIT;
+==
+#Terminal 3
+BEGIN;
+
+-- Lock the row for account_id 1
+SELECT * FROM bank_accounts WHERE account_id = 1 FOR UPDATE;
+
+-- Deposit $1200 into account 1
+UPDATE bank_accounts
+SET balance = balance + 1200.00
+WHERE account_id = 1;
+
+--Commit the transaction
+COMMIT;
+==
+\! clear
